@@ -28,7 +28,7 @@ Ideas, suggestions and bug reports are always welcome in [Issues](../../issues) 
 - Instant hotkey toggle: `Ctrl+Alt+M` to blackout, press again to restore
 - Accident-proof: keyboard input and Alt+F4 are swallowed; the cover never shows up in Alt+Tab or the taskbar
 - Multi-monitor support: one black window per display
-- RGB blackout: if [OpenRGB](https://openrgb.org) is installed, all LEDs are turned off together with the screen; skipped silently otherwise (toggle in the tray menu)
+- RGB blackout: if [OpenRGB](https://openrgb.org) is installed, all LEDs are turned off together with the screen; skipped silently otherwise (toggle in the tray menu). Works only with devices in OpenRGB's supported list (Razer/Logitech/Corsair/ASUS and mainstream motherboard lighting); niche/white-brand peripherals may not be detected — no effect, no side effects
 - Low-profile tray: a plain dark-gray icon with no tooltip; right-click menu to toggle or exit
 
 ## Getting started
