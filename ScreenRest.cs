@@ -5,7 +5,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
@@ -139,7 +141,9 @@ namespace ScreenRest
         private readonly ToolStripMenuItem toggleItem;
         private readonly HotKeyWindow hotKeyWindow;
         private readonly System.Windows.Forms.Timer topMostTimer;
+        private readonly ToolStripMenuItem killLedsItem;
         private bool covering;
+        private bool killLeds = true; // turn off RGB LEDs via OpenRGB on blackout
 
         public MainContext()
         {
@@ -152,8 +156,14 @@ namespace ScreenRest
             ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit");
             exitItem.Click += delegate { ExitApp(); };
 
+            killLedsItem = new ToolStripMenuItem("Kill RGB LEDs (OpenRGB)");
+            killLedsItem.CheckOnClick = true;
+            killLedsItem.Checked = true;
+            killLedsItem.Click += delegate { killLeds = killLedsItem.Checked; };
+
             ContextMenuStrip menu = new ContextMenuStrip();
             menu.Items.Add(toggleItem);
+            menu.Items.Add(killLedsItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(exitItem);
 
@@ -204,6 +214,51 @@ namespace ScreenRest
             }
             covering = true;
             toggleItem.Text = "Restore (" + HotKeyLabel + ")";
+
+            if (killLeds) TryKillLeds();
+        }
+
+        // Best-effort RGB blackout via OpenRGB. Silent on any failure:
+        // LED control is a bonus and must never break the main function.
+        private void TryKillLeds()
+        {
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    string exe = FindOpenRgb();
+                    if (exe == null) return;
+                    using (Process p = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = exe,
+                        Arguments = "--mode static --color 000000",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }))
+                    {
+                        if (p != null && !p.WaitForExit(5000))
+                        {
+                            try { p.Kill(); } catch { }
+                        }
+                    }
+                }
+                catch { }
+            });
+        }
+
+        private static string FindOpenRgb()
+        {
+            string[] candidates = new[]
+            {
+                "openrgb.exe", // resolved via PATH
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "OpenRGB", "openrgb.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "OpenRGB", "openrgb.exe")
+            };
+            foreach (string path in candidates)
+            {
+                if (File.Exists(path)) return path;
+            }
+            return null;
         }
 
         private void Restore()

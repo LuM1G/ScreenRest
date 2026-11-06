@@ -28,6 +28,7 @@ Ideas, suggestions and bug reports are always welcome in [Issues](../../issues) 
 - Instant hotkey toggle: `Ctrl+Alt+M` to blackout, press again to restore
 - Accident-proof: keyboard input and Alt+F4 are swallowed; the cover never shows up in Alt+Tab or the taskbar
 - Multi-monitor support: one black window per display
+- RGB blackout: if [OpenRGB](https://openrgb.org) is installed, all LEDs are turned off together with the screen; skipped silently otherwise (toggle in the tray menu)
 - Low-profile tray: a plain dark-gray icon with no tooltip; right-click menu to toggle or exit
 
 ## Getting started
@@ -61,6 +62,9 @@ The blackout is only a visual cover — system-level keys (like Win) still pop u
 
 **Forgot the hotkey / the app misbehaves?**
 Press `Ctrl+Alt+Del`, open Task Manager and kill the ScreenRest process.
+
+**How do I turn the RGB LEDs back on?**
+The OpenRGB CLI is stateless — it cannot faithfully restore your previous lighting (mode parameters are often unreadable, and vendor RGB software may overwrite settings anyway). Recommended: save your favorite lighting as a profile in the OpenRGB GUI and load it when needed, or use your motherboard/vendor utility. If LED kill doesn't work, run OpenRGB once as administrator so it can detect your devices.
 
 ## License
 
