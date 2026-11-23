@@ -7,7 +7,7 @@ if not exist "%CSC%" (
     echo .NET Framework 4 csc.exe not found.
     exit /b 1
 )
-"%CSC%" /nologo /target:winexe /out:"%~dp0ScreenRest.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll "%~dp0ScreenRest.cs"
+"%CSC%" /nologo /target:winexe /out:"%~dp0ScreenRest.exe" /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Management.dll /r:System.Windows.Forms.dll "%~dp0ScreenRest.cs"
 if errorlevel 1 (
     echo Build failed.
     exit /b 1

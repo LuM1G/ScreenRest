@@ -12,7 +12,7 @@
 ## ✨ Why you'll like it
 
 - ⚡ **Fast** — instant blackout, instant restore, no animation, no waiting
-- 🪶 **Tiny** — a single 10 KB exe, fully portable, no installation
+- 🪶 **Tiny** — a single ~20 KB exe, fully portable, no installation
 - 🎈 **Simple** — double-click to start, one hotkey to toggle; no UI, no settings, nothing to learn
 - 💤 **Light** — idles at ~25–30 MB of RAM, pretty slim for a GUI app
 - 🖥️ **Multi-monitor** — one black window per display
@@ -24,6 +24,8 @@ Ideas, suggestions and bug reports are always welcome in [Issues](../../issues) 
 ## Features
 
 - All displays go pitch black with the mouse cursor hidden — looks like the monitor is off
+- Truly dark: the physical backlight is driven to zero while covered (DDC/CI for external displays, WMI for the internal laptop panel) and restored afterwards; the tray menu can disable this on its own
+- Cover hardening: on Windows 11 the cover windows use square corners and no system border, so no desktop peeks through at the edges
 - The system stays awake: no auto screen-off, no sleep, no lock while covered
 - Instant hotkey toggle: `Ctrl+Alt+M` to blackout, press again to restore
 - Accident-proof: keyboard input and Alt+F4 are swallowed; the cover never shows up in Alt+Tab or the taskbar
@@ -33,7 +35,7 @@ Ideas, suggestions and bug reports are always welcome in [Issues](../../issues) 
 
 ## Getting started
 
-1. Download `ScreenRest.exe` (about 10 KB, no installation needed)
+1. Download `ScreenRest.exe` (about 20 KB, no installation needed)
 2. Double-click to run — a dark-gray square appears in the tray
 3. Press `Ctrl+Alt+M` to fake screen-off, press again to restore
 4. To exit: right-click the tray icon → Exit
@@ -49,6 +51,9 @@ Double-click `build.cmd`. It uses the C# compiler (`csc.exe`) that ships with Wi
 ## How it works
 
 - A borderless, topmost, pure-black window (`WS_EX_TOOLWINDOW`, hidden from Alt+Tab) is created for each display, and the cursor is hidden
+- While covered, each display's brightness is read and saved (DDC/CI for external monitors, WMI for the internal laptop panel), then the physical backlight is set to zero; the saved value is written back on restore
+- The original values live in `%LOCALAPPDATA%\ScreenRest\brightness.state` and the file is deleted after a normal restore; if the process was force-killed, the next launch restores them automatically
+- On Windows 11, DWM is asked for square corners and no system border on the cover windows
 - `SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED)` continuously holds the system idle timers, so Windows never turns off the display, sleeps or locks
 - A system-wide hotkey is registered via `RegisterHotKey`, which keeps working while the screen is covered
 
@@ -61,7 +66,16 @@ Unsigned executables occasionally trigger false positives. Add it to the whiteli
 The blackout is only a visual cover — system-level keys (like Win) still pop up system UI. Use your own judgment about the situation, and lock sensitive content before leaving your desk.
 
 **Forgot the hotkey / the app misbehaves?**
-Press `Ctrl+Alt+Del`, open Task Manager and kill the ScreenRest process.
+Press `Ctrl+Alt+Del`, open Task Manager and kill the ScreenRest process. If the backlight stays at zero, run `ScreenRest.exe` once — it restores the brightness on startup.
+
+**Still a faint glow at brightness zero?**
+On many LCD panels the lowest brightness setting does not mean a fully off backlight — that is a physical panel limit. If an external monitor does not dim at all, check whether DDC/CI is enabled in its OSD menu.
+
+**Will it mess up my brightness settings?**
+No. The current value is read before anything is changed and written back on restore, on exit, and on the next launch. The screen only stays at minimum brightness if the process is force-killed and never started again.
+
+**The screen stayed dark after a crash or taskkill?**
+Run `ScreenRest.exe` again — it checks `%LOCALAPPDATA%\ScreenRest\brightness.state` at startup and restores the saved values. If that still fails, set the brightness back with the monitor's physical buttons.
 
 **How do I turn the RGB LEDs back on?**
 The OpenRGB CLI is stateless — it cannot faithfully restore your previous lighting (mode parameters are often unreadable, and vendor RGB software may overwrite settings anyway). Recommended: save your favorite lighting as a profile in the OpenRGB GUI and load it when needed, or use your motherboard/vendor utility. If LED kill doesn't work, run OpenRGB once as administrator so it can detect your devices.
