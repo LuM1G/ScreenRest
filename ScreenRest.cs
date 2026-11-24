@@ -218,7 +218,7 @@ namespace ScreenRest
     {
         private static readonly object gate = new object();
         private static bool dimmed;
-        private static bool wantDim;
+        private static volatile bool wantDim;
         private static List<SavedValue> activeSaved;
 
         private sealed class SavedValue
@@ -299,27 +299,38 @@ namespace ScreenRest
                     }
                 }
 
-                if (saved.Count > 0) SaveState(saved);
-                activeSaved = saved;
-
-                foreach (IntPtr handle in dimTargets)
-                {
-                    Native.SetVCPFeature(handle, Native.VCP_BRIGHTNESS, 0);
-                }
-                foreach (Native.PHYSICAL_MONITOR[] monitors in openHandles)
-                {
-                    Native.DestroyPhysicalMonitors((uint)monitors.Length, monitors);
-                }
-
-                if (savedWmi) TrySetWmiBrightness(0);
-
                 if (saved.Count == 0)
                 {
                     problem = "Backlight dimming is not available on this display " +
                               "(DDC/CI may be disabled in the monitor menu).";
                 }
+                else if (!SaveState(saved, saved))
+                {
+                    // Without a saved copy of the original values, a kill would leave
+                    // the panel dark with nothing to restore from. The black cover
+                    // already does its job, so leave the backlight alone.
+                    foreach (Native.PHYSICAL_MONITOR[] monitors in openHandles)
+                    {
+                        Native.DestroyPhysicalMonitors((uint)monitors.Length, monitors);
+                    }
+                    problem = "Could not save the original brightness; the backlight " +
+                              "was left alone.";
+                }
                 else
                 {
+                    activeSaved = saved;
+
+                    foreach (IntPtr handle in dimTargets)
+                    {
+                        Native.SetVCPFeature(handle, Native.VCP_BRIGHTNESS, 0);
+                    }
+                    foreach (Native.PHYSICAL_MONITOR[] monitors in openHandles)
+                    {
+                        Native.DestroyPhysicalMonitors((uint)monitors.Length, monitors);
+                    }
+
+                    if (savedWmi) TrySetWmiBrightness(0);
+
                     dimmed = true;
                 }
             }
@@ -332,11 +343,11 @@ namespace ScreenRest
             lock (gate)
             {
                 if (!dimmed) return;
-                List<SavedValue> remaining = RestoreValues(activeSaved);
+                List<SavedValue> tried = activeSaved;
+                List<SavedValue> remaining = RestoreValues(tried);
                 activeSaved = null;
                 dimmed = false;
-                if (remaining.Count == 0) DeleteState();
-                else SaveState(remaining);
+                SaveState(remaining, tried);
             }
         }
 
@@ -346,9 +357,8 @@ namespace ScreenRest
             lock (gate)
             {
                 if (!File.Exists(StatePath())) return;
-                List<SavedValue> remaining = RestoreValues(LoadState());
-                if (remaining.Count == 0) DeleteState();
-                else SaveState(remaining);
+                List<SavedValue> tried = LoadState();
+                SaveState(RestoreValues(tried), tried);
             }
         }
 
@@ -481,22 +491,53 @@ namespace ScreenRest
                 "ScreenRest", "brightness.state");
         }
 
-        private static void SaveState(List<SavedValue> values)
+        // Rewrites the pending state. Entries for the devices in superseded are
+        // replaced; anything still waiting -- a screen that was unplugged when a
+        // restore ran, for instance -- is kept. An empty result deletes the file.
+        // Writes go through a temp file: a kill in the middle of a direct write
+        // would leave a truncated file, and the saved values would be lost.
+        private static bool SaveState(List<SavedValue> values, List<SavedValue> superseded)
         {
             try
             {
-                string path = StatePath();
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
                 List<string> lines = new List<string>();
-                lines.Add("v1");
-                foreach (SavedValue value in values)
+                foreach (SavedValue old in LoadState())
                 {
-                    if (value.DeviceName == null) lines.Add("wmi|" + value.Value);
-                    else lines.Add("ddc|" + value.DeviceName + "|" + value.Value);
+                    if (!ContainsDevice(superseded, old.DeviceName)) lines.Add(FormatEntry(old));
                 }
-                File.WriteAllLines(path, lines.ToArray());
+                foreach (SavedValue value in values) lines.Add(FormatEntry(value));
+
+                if (lines.Count == 0)
+                {
+                    return DeleteState();
+                }
+
+                string path = StatePath();
+                string temp = path + ".tmp";
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                lines.Insert(0, "v1");
+                File.WriteAllLines(temp, lines.ToArray());
+                if (File.Exists(path)) File.Replace(temp, path, null);
+                else File.Move(temp, path);
+                return true;
             }
-            catch (Exception) { }
+            catch (Exception) { return false; }
+        }
+
+        private static string FormatEntry(SavedValue value)
+        {
+            if (value.DeviceName == null) return "wmi|" + value.Value;
+            return "ddc|" + value.DeviceName + "|" + value.Value;
+        }
+
+        private static bool ContainsDevice(List<SavedValue> values, string deviceName)
+        {
+            if (values == null) return false;
+            foreach (SavedValue value in values)
+            {
+                if (value.DeviceName == deviceName) return true;
+            }
+            return false;
         }
 
         private static List<SavedValue> LoadState()
@@ -526,9 +567,10 @@ namespace ScreenRest
             return values;
         }
 
-        private static void DeleteState()
+        private static bool DeleteState()
         {
-            try { File.Delete(StatePath()); } catch (Exception) { }
+            try { File.Delete(StatePath()); return true; }
+            catch (Exception) { return false; }
         }
     }
 

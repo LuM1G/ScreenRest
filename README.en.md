@@ -51,7 +51,7 @@ Double-click `build.cmd`. It uses the C# compiler (`csc.exe`) that ships with Wi
 ## How it works
 
 - A borderless, topmost, pure-black window (`WS_EX_TOOLWINDOW`, hidden from Alt+Tab) is created for each display, and the cursor is hidden
-- While covered, each display's brightness is read and saved (DDC/CI for external monitors, WMI for the internal laptop panel), then the physical backlight is set to zero; the saved value is written back on restore
+- While covered, each display's brightness is read and saved over DDC/CI first; if any display cannot be read that way, one WMI fallback pass is used (it affects every WMI brightness device), then the physical backlight is set to zero; the saved value is written back on restore
 - The original values live in `%LOCALAPPDATA%\ScreenRest\brightness.state` and the file is deleted after a normal restore; if the process was force-killed, the next launch restores them automatically
 - On Windows 11, DWM is asked for square corners and no system border on the cover windows
 - `SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED)` continuously holds the system idle timers, so Windows never turns off the display, sleeps or locks
@@ -72,7 +72,7 @@ Press `Ctrl+Alt+Del`, open Task Manager and kill the ScreenRest process. If the 
 On many LCD panels the lowest brightness setting does not mean a fully off backlight — that is a physical panel limit. If an external monitor does not dim at all, check whether DDC/CI is enabled in its OSD menu.
 
 **Will it mess up my brightness settings?**
-No. The current value is read before anything is changed and written back on restore, on exit, and on the next launch. The screen only stays at minimum brightness if the process is force-killed and never started again.
+No. The current value is read before anything is changed and written back on restore, on exit, and on the next launch. If a display cannot be reached at that moment (unplugged, DDC/CI turned off), its entry is kept and retried on the next launch. The screen only stays at minimum brightness if the process is force-killed and never started again.
 
 **The screen stayed dark after a crash or taskkill?**
 Run `ScreenRest.exe` again — it checks `%LOCALAPPDATA%\ScreenRest\brightness.state` at startup and restores the saved values. If that still fails, set the brightness back with the monitor's physical buttons.
